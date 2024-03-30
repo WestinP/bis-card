@@ -3,6 +3,9 @@
 	import type { ColorRepresentation } from 'three';
 	import { useReflow } from '@threlte/flex';
 	import { forwardEventHandlers } from '@threlte/core';
+
+    const component = forwardEventHandlers();
+
 	export let text: string;
 	export let color: ColorRepresentation = 'white';
 	export let z = 0;
@@ -26,7 +29,8 @@
 </script>
 
 <!-- font={fontUrl} -->
-<Text
+<Text 
+    bind:this={$component}
 	position.z={z}
 	{text}
 	{anchorX}

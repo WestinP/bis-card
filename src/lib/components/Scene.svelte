@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { T } from '@threlte/core';
+	import { T, useTask } from '@threlte/core';
 	import { ContactShadows, Float, Grid, OrbitControls, interactivity } from '@threlte/extras';
 	import { Box, Flex, tailwindParser } from '@threlte/flex';
 	import { spring } from 'svelte/motion';
@@ -9,89 +9,158 @@
 
 	interactivity();
 
-	let rotX = writable(0);
-	let rotY = writable(0);
-	let rotZ = writable(0);
+	let rotX = spring(0, {
+		stiffness: 0.4,
+		damping: 0.5
+	});
+	let rotY = spring(0, {
+		stiffness: 0.4,
+		damping: 0.5
+	});
+	let rotZ = spring(0, {
+		stiffness: 0.4,
+		damping: 0.5
+	});
+
+	let outerRotX = spring(0, {
+		stiffness: 0.4,
+		damping: 0.5
+	});
+	let outerRotY = spring(0, {
+		stiffness: 0.4,
+		damping: 0.5
+	});
+	let outerRotZ = spring(0, {
+		stiffness: 0.4,
+		damping: 0.5
+	});
 
 	let posZ = spring(0, {
 		stiffness: 0.4,
 		damping: 0.4
 	});
 
-	// // wiggle effect
-	setInterval(() => {
-		if (flipping) return;
-
-		if (flipped) {
-			rotX.update((n) => Math.sin(Date.now() / 1000) * 0.1 + Math.PI);
-		} else {
-			rotX.update((n) => Math.sin(Date.now() / 1000) * 0.1);
+	useTask(() => {
+		if (flipping) {
+			rotX.set(0);
+			rotY.set(0);
+			rotZ.set(0);
+			return;
 		}
-		rotX.update((n) => Math.sin(Date.now() / 1000) * 0.1);
-	}, 1000 / 60);
 
-	setInterval(() => {
-		if (flipping) return;
-
-		rotY.update((n) => Math.cos(Date.now() / 1000) * 0.1);
-	}, 1000 / 60);
-
-	setInterval(() => {
-		if (flipping) return;
-
-		rotZ.update((n) => Math.sin(Date.now() / 1000) * 0.03);
-	}, 1000 / 60);
+		outerRotX.update((n) => Math.sin(Date.now() / 300) * 0.1);
+		outerRotY.update((n) => Math.cos(Date.now() / 300) * 0.1);
+		outerRotZ.update((n) => Math.sin(Date.now() / 300) * 0.02);
+	});
 
 	// card flip
 	let flipped = false;
 	let flipping = false;
+	let flipState = 1;
+
+	let flipRotation = writable(0);
+	let flipPosition = writable(1);
+
+	let timeSinceStateChange = 0;
+	useTask((delta) => {
+		if (!flipping) return;
+
+		const slideInTime = 0.05;
+		const rotationTime = 0.15;
+		const slideOutTime = 0.05;
+
+		switch (flipState) {
+			// case 1: sliding down to y -= 1
+			case 1:
+				timeSinceStateChange += delta;
+				flipPosition.update((n) => n - delta / 1 / slideInTime);
+				if (timeSinceStateChange >= slideInTime) {
+					flipState = 2;
+					timeSinceStateChange = 0;
+				}
+				break;
+			// case 2: rotating flipRotation Math.PI
+			case 2:
+				timeSinceStateChange += delta;
+				flipRotation.update((n) => n - (delta / rotationTime) * Math.PI);
+				if (timeSinceStateChange >= rotationTime) {
+					flipState = 3;
+					timeSinceStateChange = 0;
+				}
+				break;
+			// case 3: sliding down to y -= 1
+			case 3:
+				timeSinceStateChange += delta;
+				flipPosition.update((n) => n - delta / 1 / slideOutTime);
+				if (timeSinceStateChange >= slideOutTime) {
+					flipState = 1;
+					timeSinceStateChange = 0;
+					flipping = false;
+					flipPosition.set(flipped ? -1 : 1);
+					posZ.set(0);
+				}
+				break;
+		}
+	});
+
 	function flip() {
-		rotX.update((n) => n + Math.PI);
+		if (flipping) return;
+
 		flipped = !flipped;
+		flipping = true;
 	}
 
-	// obj - your object (THREE.Object3D or derived)
-	// point - the point of rotation (THREE.Vector3)
-	// axis - the axis of rotation (normalized THREE.Vector3)
-	// theta - radian value of rotation
-	// pointIsWorld - boolean indicating the point is in world coordinates (default = false)
-	function rotateAboutPoint(obj, point, axis, theta, pointIsWorld = false) {
-		if (pointIsWorld) {
-			obj.parent.localToWorld(obj.position); // compensate for world coordinate
-		}
+	function mouseOverCard(e: any) {
+		// get the eventObject intersection
+		const int = e.intersections.find((i: any) => i.object === e.eventObject);
+		if (!int) return;
 
-		obj.position.sub(point); // remove the offset
-		obj.position.applyAxisAngle(axis, theta); // rotate the POSITION
-		obj.position.add(point); // re-add the offset
+		const { uv } = int;
+		const { x, y } = uv;
 
-		if (pointIsWorld) {
-			obj.parent.worldToLocal(obj.position); // undo world coordinates compensation
-		}
-
-		obj.rotateOnAxis(axis, theta); // rotate the OBJECT
+		// x: 0 -> 1
+		// y: 0 -> 1
+		// rotate the card based on the mouse position
+		rotX.set(-1 * (y - 0.5) * 0.5);
+		rotY.set((x - 0.5) * 0.5);
 	}
 
-
-	let rotYY = writable(0);
-	setInterval(() => {
-		rotYY.update((n) => n - 0.01);
-	}, 1000 / 60);
+	let cardGroup: Group;
 </script>
 
 <T.PerspectiveCamera makeDefault position={[0, 0, 15]} fov={15}></T.PerspectiveCamera>
 
 <Flex>
-	<T.Group rotation.x={$rotYY}> 
+	<T.Group
+		position.z={$posZ}
+		rotation.x={$outerRotX}
+		rotation.y={$outerRotY}
+		rotation.z={$outerRotZ}
+	>
 		<T.Mesh
-			position.z={$posZ}
-			position.y={-1}
 			rotation.x={$rotX}
 			rotation.y={$rotY}
 			rotation.z={$rotZ}
-			on:pointerover={() => posZ.set(1)}
-			on:pointerout={() => posZ.set(0)}
-			on:click={() => flip()}
-			origin={[0.5, 0.5, 0.5]}
+			on:pointerover={() => {
+				if (flipping) return;
+				posZ.set(1);
+			}}
+			on:pointerout={() => {
+				if (flipping) return;
+				rotX.set(0);
+				rotY.set(0);
+				posZ.set(0);
+			}}
+			on:pointermove={(e) => {
+				e.stopPropagation();
+
+				if (flipping) return;
+				mouseOverCard(e);
+			}}
+			on:click={(e) => {
+				e.stopPropagation();
+				flip();
+			}}
 		>
 			<T.BoxGeometry args={[3.5, 2, 0.025]} />
 			<T.MeshStandardMaterial color="white" metalness={0.8} />
