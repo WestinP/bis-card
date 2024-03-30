@@ -48,9 +48,9 @@
 			return;
 		}
 
-		outerRotX.update((n) => Math.sin(Date.now() / 300) * 0.1);
-		outerRotY.update((n) => Math.cos(Date.now() / 300) * 0.1);
-		outerRotZ.update((n) => Math.sin(Date.now() / 300) * 0.02);
+		outerRotX.update((n) => Math.sin(Date.now() / 700) * 0.1);
+		outerRotY.update((n) => Math.cos(Date.now() / 700) * 0.1);
+		outerRotZ.update((n) => Math.sin(Date.now() / 500) * 0.02);
 	});
 
 	// card flip
